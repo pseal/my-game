@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Brave Hero Adventure</title>
+<style>
+  body { margin:0; overflow:hidden; background:#000; }
+  canvas { display:block; margin:auto; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 900;
+canvas.height = 450;
+
+let level = 1;
+let speed = 4;
+let gravity = 0.6;
+let frame = 0;
+let gameState = 'play';
+
+const backgrounds = ['#1e3d59','#3a5a40','#6a040f','#14213d'];
+
+const player = {
+  x: 80,
+  y: 300,
+  w: 30,
+  h: 50,
+  dy: 0,
+  jumpForce: -12,
+  grounded: true,
+  health: 3
+};
+
+let obstacles = [];
+let finishLine = null;
+
+function spawnObstacle() {
+  const type = Math.random();
+  if (type < 0.4) {
+    // ground block
+    obstacles.push({x:canvas.width,y:380,w:30,h:50,type:'block'});
+  } else if (type < 0.7) {
+    // tall pillar
+    obstacles.push({x:canvas.width,y:350,w:20,h:80,type:'pillar'});
+  } else {
+    // flying enemy
+    obstacles.push({x:canvas.width,y:250,w:30,h:30,type:'fly'});
+  }
+}
+
+function startLevel() {
+  obstacles = [];
+  frame = 0;
+  finishLine = {x: 3000 + level*500};
+}
+
+startLevel();
+
+function update() {
+  if (gameState !== 'play') return;
+  frame++;
+
+  if (frame % (100 - level*5) === 0) spawnObstacle();
+
+  player.dy += gravity;
+  player.y += player.dy;
+
+  if (player.y + player.h >= canvas.height - 20) {
+    player.y = canvas.height - 20 - player.h;
+    player.dy = 0;
+    player.grounded = true;
+  }
+
+  obstacles.forEach(o => o.x -= speed);
+
+  for (let o of obstacles) {
+    if (
+      player.x < o.x + o.w &&
+      player.x + player.w > o.x &&
+      player.y < o.y + o.h &&
+      player.y + player.h > o.y
+    ) {
+      player.health--;
+      o.x = -100; // remove
+      if (player.health <= 0) {
+        gameState = 'gameover';
+      }
+    }
+  }
+
+  obstacles = obstacles.filter(o => o.x + o.w > 0);
+
+  finishLine.x -= speed;
+
+  if (finishLine.x < player.x) {
+    level++;
+    speed += 1;
+    player.health = Math.min(player.health + 1, 5);
+    startLevel();
+  }
+}
+
+function drawPlayer() {
+  // simple human stick figure
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 3;
+
+  const cx = player.x + player.w/2;
+  const cy = player.y + 15;
+
+  // head
+  ctx.beginPath();
+  ctx.arc(cx, cy-10, 8, 0, Math.PI*2);
+  ctx.stroke();
+
+  // body
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx, cy+20);
+  ctx.stroke();
+
+  // arms
+  ctx.beginPath();
+  ctx.moveTo(cx-10, cy+10);
+  ctx.lineTo(cx+10, cy+10);
+  ctx.stroke();
+
+  // legs
+  ctx.beginPath();
+  ctx.moveTo(cx, cy+20);
+  ctx.lineTo(cx-8, cy+35);
+  ctx.moveTo(cx, cy+20);
+  ctx.lineTo(cx+8, cy+35);
+  ctx.stroke();
+}
+
+function draw() {
+  ctx.fillStyle = backgrounds[(level-1) % backgrounds.length];
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // ground
+  ctx.fillStyle = '#333';
+  ctx.fillRect(0, canvas.height-20, canvas.width, 20);
+
+  drawPlayer();
+
+  // obstacles
+  obstacles.forEach(o => {
+    if (o.type === 'fly') ctx.fillStyle = 'yellow';
+    else ctx.fillStyle = 'red';
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+  });
+
+  // finish line
+  ctx.fillStyle = 'lime';
+  ctx.fillRect(finishLine.x,0,10,canvas.height);
+
+  // UI
+  ctx.fillStyle = 'white';
+  ctx.font = '18px Arial';
+  ctx.fillText('Level: '+level,10,20);
+  ctx.fillText('Health: '+player.health,10,45);
+
+  if (gameState === 'gameover') {
+    ctx.fillText('GAME OVER - Refresh to restart',300,200);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && player.grounded) {
+    player.dy = player.jumpForce;
+    player.grounded = false;
+  }
+});
+
+loop();
+</script>
+</body>
+</html>

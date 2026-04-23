@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Match Game</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: linear-gradient(to right, #74ebd5, #ACB6E5);
+    margin: 0;
+  }
+
+  h1 { margin-top: 10px; }
+
+  #menu { margin: 20px; }
+
+  button {
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 10px;
+    border: none;
+    background: #333;
+    color: white;
+  }
+
+  #gameBoard {
+    display: grid;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px;
+  }
+
+  .card {
+    width: 70px;
+    height: 70px;
+    background: #444;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    cursor: pointer;
+    color: transparent;
+    user-select: none;
+  }
+
+  .revealed {
+    background: white;
+    color: black;
+  }
+
+  .matched {
+    background: #8BC34A;
+    color: white;
+    cursor: default;
+  }
+
+  #status, #timer, #bestScore {
+    font-size: 18px;
+    margin: 5px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Memory Match Game</h1>
+
+<div id="menu">
+  <button onclick="startGame(4)">Easy (4x4)</button>
+  <button onclick="startGame(6)">Medium (6x6)</button>
+  <button onclick="startGame(8)">Hard (8x8)</button>
+</div>
+
+<div id="timer">Time: 0s</div>
+<div id="bestScore">Best: --</div>
+<div id="status"></div>
+<div id="gameBoard"></div>
+
+<script>
+let firstCard = null;
+let secondCard = null;
+let lockBoard = false;
+let matches = 0;
+let totalPairs = 0;
+let timer = 0;
+let timerInterval;
+
+// Mixed themes
+const symbols = [
+  // Fruits 🍎
+  "🍎","🍌","🍇","🍓","🍒","🍍","🥝","🍉",
+  // Vegetables 🥕
+  "🥕","🌽","🍆","🥔","🥦","🧄","🧅","🍄",
+  // Animals 🐶
+  "🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼",
+  // Birds 🐦
+  "🐦","🦉","🦅","🦆","🦜","🐧","🦢","🕊️"
+];
+
+function startGame(size) {
+  const board = document.getElementById("gameBoard");
+  const status = document.getElementById("status");
+
+  board.innerHTML = "";
+  matches = 0;
+  timer = 0;
+  clearInterval(timerInterval);
+
+  document.getElementById("timer").innerText = "Time: 0s";
+
+  totalPairs = (size * size) / 2;
+  board.style.gridTemplateColumns = `repeat(${size}, 70px)`;
+
+  let gameSymbols = symbols.slice(0, totalPairs);
+  let cardsArray = [...gameSymbols, ...gameSymbols];
+
+  cardsArray.sort(() => Math.random() - 0.5);
+
+  cardsArray.forEach(symbol => {
+    const card = document.createElement("div");
+    card.classList.add("card", "revealed"); // reveal for preview
+    card.dataset.symbol = symbol;
+    card.innerText = symbol;
+
+    card.addEventListener("click", () => flipCard(card));
+
+    board.appendChild(card);
+  });
+
+  status.innerText = "Memorize the cards!";
+
+  // Preview mode (3 seconds)
+  setTimeout(() => {
+    document.querySelectorAll(".card").forEach(card => {
+      card.classList.remove("revealed");
+    });
+    startTimer();
+    status.innerText = "Start matching!";
+  }, 2000);
+
+  loadBestScore(size);
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timer++;
+    document.getElementById("timer").innerText = "Time: " + timer + "s";
+  }, 1000);
+}
+
+function flipCard(card) {
+  if (lockBoard || card.classList.contains("revealed") || card.classList.contains("matched")) return;
+
+  card.classList.add("revealed");
+
+  if (!firstCard) {
+    firstCard = card;
+    return;
+  }
+
+  secondCard = card;
+  checkMatch();
+}
+
+function checkMatch() {
+  if (firstCard.dataset.symbol === secondCard.dataset.symbol) {
+    firstCard.classList.add("matched");
+    secondCard.classList.add("matched");
+    matches++;
+
+    if (matches === totalPairs) {
+      clearInterval(timerInterval);
+      document.getElementById("status").innerText = "🎉 You Win in " + timer + "s!";
+      saveBestScore(totalPairs, timer);
+    }
+
+    resetTurn();
+  } else {
+    lockBoard = true;
+    setTimeout(() => {
+      firstCard.classList.remove("revealed");
+      secondCard.classList.remove("revealed");
+      resetTurn();
+    }, 800);
+  }
+}
+
+function resetTurn() {
+  [firstCard, secondCard] = [null, null];
+  lockBoard = false;
+}
+
+// Best score handling
+function saveBestScore(level, time) {
+  let best = localStorage.getItem("best_" + level);
+
+  if (!best || time < best) {
+    localStorage.setItem("best_" + level, time);
+    document.getElementById("bestScore").innerText = "Best: " + time + "s ⭐";
+  }
+}
+
+function loadBestScore(level) {
+  let best = localStorage.getItem("best_" + level);
+  document.getElementById("bestScore").innerText = best ? "Best: " + best + "s" : "Best: --";
+}
+</script>
+
+</body>
+</html>

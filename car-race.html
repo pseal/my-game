@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lane Drag Race – Player Control</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+    color: #fff;
+  }
+
+  #game {
+    position: relative;
+    width: 1000px;
+    height: 420px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 25px #000;
+    background: linear-gradient(#1a237e, #000);
+    transition: background 1s linear;
+  }
+
+  /* Animated background layers */
+  .bg-layer {
+    position: absolute;
+    width: 200%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background-repeat: repeat-x;
+    opacity: 0.25;
+    pointer-events: none;
+    animation: scrollBg 25s linear infinite;
+  }
+  .bg-layer.back {
+    background-image: linear-gradient(to top, transparent 60%, #263238 60%);
+    animation-duration: 40s;
+  }
+  .bg-layer.front {
+    background-image: linear-gradient(to top, transparent 70%, #37474f 70%);
+    animation-duration: 20s;
+  }
+  @keyframes scrollBg {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* Track lanes */
+  .lane {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.35);
+  }
+  .lane:nth-child(odd) {
+    background: rgba(0,0,0,0.45);
+  }
+
+  .lane-label {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  .finish-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    right: 80px;
+    background-image: linear-gradient(#fff 50%, #000 50%);
+    background-size: 8px 16px;
+  }
+
+  /* Cars */
+  .car {
+    position: absolute;
+    width: 50px;
+    height: 30px;
+    top: 0;
+    left: 40px;
+    transform: translateY(-50%);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 6px;
+    filter: drop-shadow(0 0 6px #000);
+  }
+
+  /* Tiny inline PNGs as placeholders – replace URLs with your own PNGs if you like */
+  .car-blue {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #42a5f5;
+  }
+  .car-green {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #00e676;
+  }
+  .car-red {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #ef5350;
+  }
+  .car-yellow {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #ffeb3b;
+  }
+  .car-purple {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #ab47bc;
+  }
+  .car-orange {
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAQAAADZfx7QAAAAD0lEQVQImWNgoBAwUAAABxgBAZ0pniEAAAAASUVORK5CYII=");
+    background-color: #ff9800;
+  }
+
+  .car-name {
+    position: absolute;
+    top: -14px;
+    left: 0;
+    font-size: 10px;
+    white-space: nowrap;
+    text-shadow: 0 0 3px #000;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 13px;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 10px;
+    border-radius: 8px;
+    line-height: 1.4;
+  }
+  #hud span.value { font-weight: bold; }
+
+  #nitroBarContainer {
+    margin-top: 4px;
+    width: 140px;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.15);
+    overflow: hidden;
+  }
+  #nitroBar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #ffea00, #ff6f00);
+    transition: width 0.1s linear;
+  }
+
+  /* Start screen */
+  #startScreen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+  }
+  #startScreen h1 { margin-bottom: 8px; }
+  #startScreen p { margin-bottom: 6px; font-size: 14px; }
+
+  #playerName {
+    margin: 6px 0 10px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: #111;
+    color: #fff;
+    width: 180px;
+    font-size: 13px;
+  }
+
+  #carSelect {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .car-option {
+    width: 40px;
+    height: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .car-option.blue { background: #42a5f5; }
+  .car-option.green { background: #00e676; }
+  .car-option.red { background: #ef5350; }
+  .car-option.yellow { background: #ffeb3b; }
+  .car-option.purple { background: #ab47bc; }
+  .car-option.orange { background: #ff9800; }
+  .car-option.selected { border-color: #ffeb3b; }
+
+  #startBtn {
+    margin-top: 8px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 6px;
+    background: #00e676;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  #startBtn:hover { background: #1de9b6; }
+
+  #hint {
+    margin-top: 6px;
+    font-size: 12px;
+    opacity: 0.8;
+  }
+
+  /* Result screen */
+  #resultScreen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+  }
+  #resultScreen h2 { margin-bottom: 10px; }
+  #resultTable {
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  #resultTable th, #resultTable td {
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 4px 8px;
+  }
+  #resultTable th {
+    background: rgba(255,255,255,0.1);
+  }
+  #restartBtn {
+    margin-top: 6px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    background: #42a5f5;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #restartBtn:hover { background: #64b5f6; }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div class="bg-layer back"></div>
+  <div class="bg-layer front"></div>
+
+  <!-- Lanes (6) -->
+  <div class="lane" style="top:60px;"><span class="lane-label">Lane 1</span></div>
+  <div class="lane" style="top:120px;"><span class="lane-label">Lane 2</span></div>
+  <div class="lane" style="top:180px;"><span class="lane-label">Lane 3</span></div>
+  <div class="lane" style="top:240px;"><span class="lane-label">Lane 4</span></div>
+  <div class="lane" style="top:300px;"><span class="lane-label">Lane 5</span></div>
+  <div class="lane" style="top:360px;"><span class="lane-label">Lane 6</span></div>
+
+  <div class="finish-line"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    Race Time: <span id="raceTime" class="value">0.00</span>s<br>
+    Nitro:
+    <div id="nitroBarContainer"><div id="nitroBar"></div></div>
+    Player: <span id="hudPlayerName" class="value">Player</span><br>
+    Controls: <span style="font-size:11px;">Right=Accel, Left=Brake, Up/Down=Lane, Shift=Nitro</span>
+  </div>
+
+  <!-- Start screen -->
+  <div id="startScreen">
+    <h1>Lane Drag Race</h1>
+    <p>6 cars, first to the finish wins.</p>
+    <p>Right=accelerate, Left=brake, Up/Down=switch lane, Shift=nitro.</p>
+    <input id="playerName" type="text" placeholder="Your name (optional)">
+    <div>Choose your car:</div>
+    <div id="carSelect">
+      <div class="car-option blue selected" data-car="blue"></div>
+      <div class="car-option green" data-car="green"></div>
+      <div class="car-option red" data-car="red"></div>
+      <div class="car-option yellow" data-car="yellow"></div>
+      <div class="car-option purple" data-car="purple"></div>
+      <div class="car-option orange" data-car="orange"></div>
+    </div>
+    <button id="startBtn">Start Race</button>
+    <div id="hint">Track is longer now – races last more time.</div>
+  </div>
+
+  <!-- Result screen -->
+  <div id="resultScreen">
+    <h2>Race Results</h2>
+    <table id="resultTable">
+      <thead>
+        <tr><th>Pos</th><th>Name</th><th>Time (s)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button id="restartBtn">Race Again</button>
+  </div>
+</div>
+
+<script>
+const game = document.getElementById("game");
+const raceTimeEl = document.getElementById("raceTime");
+const nitroBar = document.getElementById("nitroBar");
+const startScreen = document.getElementById("startScreen");
+const resultScreen = document.getElementById("resultScreen");
+const resultTableBody = document.querySelector("#resultTable tbody");
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const playerNameInput = document.getElementById("playerName");
+const carSelect = document.getElementById("carSelect");
+const hudPlayerName = document.getElementById("hudPlayerName");
+
+let keys = {};
+let cars = [];
+let running = false;
+let lastTime = 0;
+let raceTime = 0;
+let finishedCount = 0;
+
+const gameWidth = 1000;
+const finishX = gameWidth - 80; // finish line x
+const startX = 60;
+
+// Nitro (player only)
+let nitroCharge = 100;
+let nitroActive = false;
+let nitroCooldown = false;
+
+// Day/night
+let dayPhase = 0;
+
+// AI names
+const AI_NAMES = ["RacerX", "Thunder", "Blaze", "Shadow", "Comet", "Viper"];
+
+// Car classes
+const CAR_CLASSES = ["car-blue","car-green","car-red","car-yellow","car-purple","car-orange"];
+
+// Input
+window.addEventListener("keydown", e => { keys[e.key] = true; });
+window.addEventListener("keyup", e => { keys[e.key] = false; });
+
+// Car selection
+let selectedCarClass = "car-blue";
+carSelect.addEventListener("click", e => {
+  const opt = e.target.closest(".car-option");
+  if (!opt) return;
+  carSelect.querySelectorAll(".car-option").forEach(o => o.classList.remove("selected"));
+  opt.classList.add("selected");
+  selectedCarClass = "car-" + opt.dataset.car;
+});
+
+// Nitro logic
+function updateNitro(dt) {
+  if (keys["Shift"] && !nitroCooldown && nitroCharge > 0) {
+    nitroActive = true;
+  } else if (!keys["Shift"]) {
+    nitroActive = false;
+  }
+
+  if (nitroActive) {
+    nitroCharge -= dt * 40; // drain
+    if (nitroCharge <= 0) {
+      nitroCharge = 0;
+      nitroActive = false;
+      nitroCooldown = true;
+    }
+  } else {
+    if (nitroCooldown) {
+      nitroCharge += dt * 15; // slow recharge
+      if (nitroCharge >= 60) nitroCooldown = false;
+    } else {
+      nitroCharge += dt * 25; // normal recharge
+    }
+    if (nitroCharge > 100) nitroCharge = 100;
+  }
+  nitroBar.style.width = nitroCharge + "%";
+}
+
+// Day/night cycle
+function updateDayNight(dt) {
+  dayPhase += dt * 0.02;
+  if (dayPhase > 1) dayPhase -= 1;
+  const t = dayPhase <= 0.5 ? dayPhase * 2 : (1 - dayPhase) * 2;
+
+  const topDay = { r: 33, g: 150, b: 243 };
+  const botDay = { r: 13, g: 71,  b: 161 };
+  const topNight = { r: 26, g: 35,  b: 126 };
+  const botNight = { r: 0,  g: 0,   b: 0   };
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  const top = {
+    r: Math.round(lerp(topNight.r, topDay.r, t)),
+    g: Math.round(lerp(topNight.g, topDay.g, t)),
+    b: Math.round(lerp(topNight.b, topDay.b, t))
+  };
+  const bot = {
+    r: Math.round(lerp(botNight.r, botDay.r, t)),
+    g: Math.round(lerp(botNight.g, botDay.g, t)),
+    b: Math.round(lerp(botNight.b, botDay.b, t))
+  };
+
+  game.style.background =
+    `linear-gradient(rgb(${top.r},${top.g},${top.b}), rgb(${bot.r},${bot.g},${bot.b}))`;
+}
+
+// Create cars
+function createCars() {
+  cars.forEach(c => c.el.remove());
+  cars = [];
+  finishedCount = 0;
+
+  const lanesY = [60,120,180,240,300,360];
+  const playerName = playerNameInput.value.trim() || "You";
+
+  const playerLaneIndex = 2; // middle lane
+
+  for (let i = 0; i < 6; i++) {
+    const el = document.createElement("div");
+    el.className = "car";
+    const nameLabel = document.createElement("div");
+    nameLabel.className = "car-name";
+    el.appendChild(nameLabel);
+
+    const laneIndex = i;
+    const laneY = lanesY[laneIndex];
+    el.style.top = laneY + "px";
+    el.style.left = startX + "px";
+
+    let isPlayer = (i === playerLaneIndex);
+    let name, carClass;
+
+    if (isPlayer) {
+      name = playerName;
+      carClass = selectedCarClass;
+    } else {
+      name = AI_NAMES[i] || ("AI-" + (i+1));
+      const available = CAR_CLASSES.filter(c => c !== selectedCarClass);
+      carClass = available[(i) % available.length];
+    }
+
+    el.classList.add(carClass);
+    nameLabel.textContent = name;
+
+    const baseSpeed = 80 + Math.random()*30;   // px/s (slower for longer race)
+    const accel = 20 + Math.random()*20;       // px/s^2
+    const jitter = 8 + Math.random()*8;
+
+    const car = {
+      el,
+      name,
+      laneIndex,
+      laneY,
+      x: startX,
+      baseSpeed,
+      accel,
+      jitter,
+      isPlayer,
+      finished: false,
+      finishTime: null,
+      speed: isPlayer ? 0 : baseSpeed // player starts at 0, AI rolling
+    };
+
+    game.appendChild(el);
+    cars.push(car);
+  }
+
+  hudPlayerName.textContent = playerName;
+}
+
+// Game loop
+function loop(timestamp) {
+  if (!running) return;
+  if (!lastTime) lastTime = timestamp;
+  const dtMs = timestamp - lastTime;
+  lastTime = timestamp;
+  const dt = dtMs / 1000;
+
+  raceTime += dt;
+  raceTimeEl.textContent = raceTime.toFixed(2);
+
+  updateNitro(dt);
+  updateDayNight(dt);
+
+  const lanesY = [60,120,180,240,300,360];
+
+  cars.forEach(car => {
+    if (car.finished) return;
+
+    if (car.isPlayer) {
+      // Lane switching: Up/Down
+      if (keys["ArrowUp"]) {
+        if (car.laneIndex > 0) {
+          car.laneIndex--;
+        }
+        keys["ArrowUp"] = false; // prevent continuous jump
+      }
+      if (keys["ArrowDown"]) {
+        if (car.laneIndex < lanesY.length - 1) {
+          car.laneIndex++;
+        }
+        keys["ArrowDown"] = false;
+      }
+      car.laneY = lanesY[car.laneIndex];
+
+      // Accelerate / brake
+      const accelPlayer = 60;   // px/s^2
+      const brakeRate = 80;     // px/s^2
+      const maxSpeed = 180;     // px/s
+
+      if (keys["ArrowRight"]) {
+        car.speed += accelPlayer * dt;
+      }
+      if (keys["ArrowLeft"]) {
+        car.speed -= brakeRate * dt;
+      }
+      if (!keys["ArrowRight"] && !keys["ArrowLeft"]) {
+        // small natural drag
+        car.speed -= 20 * dt;
+      }
+
+      if (car.speed < 0) car.speed = 0;
+      if (car.speed > maxSpeed) car.speed = maxSpeed;
+
+      let effectiveSpeed = car.speed;
+      if (nitroActive) effectiveSpeed *= 1.8;
+
+      car.x += effectiveSpeed * dt;
+    } else {
+      // AI car
+      let speed = car.baseSpeed + car.accel * raceTime + (Math.random()-0.5)*car.jitter;
+      car.x += speed * dt;
+    }
+
+    if (car.x >= finishX) {
+      car.x = finishX;
+      car.finished = true;
+      car.finishTime = raceTime;
+      finishedCount++;
+      if (finishedCount === cars.length) {
+        endRace();
+      }
+    }
+
+    car.el.style.left = car.x + "px";
+    car.el.style.top = car.laneY + "px";
+  });
+
+  requestAnimationFrame(loop);
+}
+
+function startRace() {
+  createCars();
+  raceTime = 0;
+  nitroCharge = 100;
+  nitroActive = false;
+  nitroCooldown = false;
+  nitroBar.style.width = "100%";
+  dayPhase = 0;
+
+  startScreen.style.display = "none";
+  resultScreen.style.display = "none";
+  running = true;
+  lastTime = 0;
+  requestAnimationFrame(loop);
+}
+
+function endRace() {
+  running = false;
+  showResults();
+}
+
+function showResults() {
+  const ranked = [...cars].sort((a,b) => a.finishTime - b.finishTime);
+  resultTableBody.innerHTML = "";
+  ranked.forEach((car, idx) => {
+    const tr = document.createElement("tr");
+    const posTd = document.createElement("td");
+    const nameTd = document.createElement("td");
+    const timeTd = document.createElement("td");
+    posTd.textContent = idx + 1;
+    nameTd.textContent = car.name + (car.isPlayer ? " (You)" : "");
+    timeTd.textContent = car.finishTime.toFixed(2);
+    tr.appendChild(posTd);
+    tr.appendChild(nameTd);
+    tr.appendChild(timeTd);
+    resultTableBody.appendChild(tr);
+  });
+  resultScreen.style.display = "flex";
+}
+
+startBtn.addEventListener("click", startRace);
+restartBtn.addEventListener("click", () => {
+  startScreen.style.display = "flex";
+  resultScreen.style.display = "none";
+});
+</script>
+
+</body>
+</html>
